@@ -10,8 +10,12 @@ from functools import partial
 from copy import deepcopy
 import numpy as np
 from deap import creator, base, tools
+from pathlib import Path
 import rheia.UQ.pce as uq
 import pandas as pd
+import sqlite3 as sql
+import json
+
 
 class NSGA2:
     """
@@ -207,7 +211,7 @@ class NSGA2:
 
         # Attach parameters list to the given set of samples
         temp = np.tile(list(self.space_obj.par_dict.values()), (len(pop), 1))
-
+        
         # check if samples in population have the appropriate length
         for pop_sample in pop:
             if len(pop_sample) != len(self.space_obj.var_dict):
@@ -312,15 +316,14 @@ class NSGA2:
         """
 
         eval_dict = []
-
         # convert the list for each sample into a dictionary
         for sample in samples:
             eval_dict.append(self.space_obj.convert_into_dictionary(sample))
-
         # linear processing
         if self.run_dict['n jobs'] == 1:
             fitness = []
             for index, sample in enumerate(eval_dict):
+                #print(f"sample : {sample}")
                 # evaluate the sample dictionary in the evaluate function
                 # provide also the index of the sample in the list of samples
                 fitness.append(self.run_dict['evaluate']((index, sample),
@@ -334,7 +337,6 @@ class NSGA2:
                                        params=self.params),
                                enumerate(eval_dict))
             pool.close()
-
         return fitness
 
     def assign_fitness_to_population(self, pop, fitness, unc_samples):
@@ -367,6 +369,7 @@ class NSGA2:
             # in case of deterministic optimization, append the deterministic
             # result from the sample evaluations to the population
             for i, sample in enumerate(pop):
+                #print(pop[i])
                 pop[i].fitness.values = fitness[i]
 
         elif 'ROB' in self.space_obj.opt_type:
@@ -476,7 +479,7 @@ class NSGA2:
 
         return doe
 
-    def eval_doe(self):
+    def eval_doe(self, df_all_individuals_evaluated):
         """
 
         Evaluation of the Design Of Experiments (DoE). First, the DoE
@@ -511,7 +514,7 @@ class NSGA2:
 
         # READ DoE file
         doe = self.read_doe(os.path.join(path_doe, file_doe))
-
+        
         # evaluate DoE
         n_eval = 0
         current_pop = []
@@ -522,21 +525,29 @@ class NSGA2:
 
         if not self.start_from_last_gen:
             # in case there is no information from previous results
-
             # create samples to evaluate
             individuals_to_eval, unc_samples = self.define_samples_to_eval(
                 current_pop)
 
             # evaluate the samples
             fitnesses = self.evaluate_samples(individuals_to_eval)
+            
+            # Store all individuals in the dataframe. 
+            # First generation has only different individuals. 
+            for i, ind in enumerate(individuals_to_eval):
+                df_to_add = pd.DataFrame({
+                    'Individual' : [ind],
+                    'Primary energy' : [fitnesses[i][0]],
+                    'Cost' : [fitnesses[i][1]]
+                })
+                df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_to_add], ignore_index=True)
             n_eval += len(individuals_to_eval)
 
             # assign fitness to the initial population
             current_pop = self.assign_fitness_to_population(current_pop,
                                                             fitnesses,
                                                             unc_samples)
-                                                            
-                                                            
+                                                                                                           
             # update the population and fitness files
             self.append_points_to_file(current_pop, 'population.csv')
             
@@ -547,7 +558,6 @@ class NSGA2:
             self.write_status('%8i%8i' % (1, n_eval))
 
         else:
-
             df = pd.read_csv(os.path.join(self.opt_res_dir, 'fitness.csv'), header=None)
             df.drop(df.tail(1).index,inplace=True)
 
@@ -575,13 +585,13 @@ class NSGA2:
             for i, pop in enumerate(current_pop):
                 pop.fitness.values = output[i]
 
-        return current_pop
+        return current_pop, df_all_individuals_evaluated
 
     ###################
     # NSGA-II methods #
     ###################
 
-    def nsga2_1iter(self, current_pop):
+    def nsga2_1iter(self, current_pop, df_all_individuals_evaluated):
         """
 
         Run one iteration of the NSGA-II optimizer.
@@ -635,40 +645,100 @@ class NSGA2:
                 # set fitness to empty tuple of modified individuals
                 del mutant.fitness.values
 
-        # evaluate the modified individuals
+        #Initilisation
         n_eval = 0
         invalid_indices = []
         invalid_fit_individuals = []
+        full_df_to_add = pd.DataFrame()
+        
         for i, ind in enumerate(offspring):
-
+            # This condition check is the new individual has undergone mutation or crossover.
+            # If not, do not evaluate again 
             if not ind.fitness.valid:
-
                 invalid_indices.append(i)
                 invalid_fit_individuals.append(ind)
-
+                
+        # Evaluate the individuals modified by mutations or crossover
         if len(invalid_fit_individuals) > 0:
 
             # create samples to evaluate
-            individuals_to_eval, unc_samples = self.define_samples_to_eval(
+            individuals_new_generation, unc_samples = self.define_samples_to_eval(
                 invalid_fit_individuals)
 
-            # evaluate samples
-            fitnesses = self.evaluate_samples(individuals_to_eval)
-            n_eval += len(individuals_to_eval)
+            # Create a dataframe with all the individuals of the new generation. 
+            # The first row is the definition of the individual : list with the value for each variable 
+            df_all_individuals = pd.DataFrame({'individual': individuals_new_generation})
+            
+            # Iterate through all the new individuals and check for the ones already computed in previous generation
+            # and stored in the 'df_all_individuals_evaluated' dataframe
+            condition_met = []
+            # This operation is done to keep the order of the individual. 
+            for index, row in df_all_individuals.iterrows():
+                is_present = df_all_individuals_evaluated['Individual'].apply(lambda x: x == row['individual']).any()
+                if is_present:
+                    # Already evaluated --> do not evaluate the individual again
+                    condition_met.append(False)
+                else:
+                    # Never been evaluated --> evaluate the individual
+                    condition_met.append(True)
 
-            # assign fitness to the orginal samples list
+            # Add the condition results to a new column 'Condition_Met'
+            df_all_individuals['Condition_Met'] = condition_met
+
+            # Filter the DataFrame based on Condition_Met being True
+            # Get the individuals that have to be evaluate
+            individuals_to_eval = df_all_individuals.loc[df_all_individuals['Condition_Met'], 'individual'].tolist()
+
+            # Evaluate the individuals
+            fitnesses_new = self.evaluate_samples(individuals_to_eval)
+            
+            # Add in a dataframe all the new individuals with their respecting fitness 
+            # Theses individuals will be store later in the 'df_all_individuals_evaluated' dataframe
+            for i, ind in enumerate(individuals_to_eval):
+                df_to_add = pd.DataFrame({
+                        'Individual' : [ind],
+                        'Primary energy' : [fitnesses_new[i][0]],
+                        'Cost' : [fitnesses_new[i][1]]
+                    })
+                full_df_to_add = pd.concat([full_df_to_add, df_to_add], ignore_index=True)     
+            
+            # Initilisation of a list, this lsit will be full with the fitness associated with all the individuals of the new generation
+            computed_values = []
+            # The variable i is used to link the fitness of new evaluated individual with the row 'condition_met'
+            i = 0
+            # Assign computed values row by row to the DataFrame
+            for indexx, row in df_all_individuals.iterrows():
+                if row['Condition_Met']:
+                    # If the individual has been evaluated in this population, assign the fitness to 'computed_values'
+                    computed_values.append(fitnesses_new[i])
+                    i+=1
+                else:
+                    # If the individual was evaluated in another generation, assign the primary energy and cost (fitness) found 
+                    # in the 'df_all_individuals_evaluated' dataframe. 
+                    index_with_ind = df_all_individuals_evaluated[df_all_individuals_evaluated['Individual'].apply(set) == set(row['individual'])].index
+                    
+                    primary_energy = df_all_individuals_evaluated.loc[index_with_ind, 'Primary energy'].values[0]
+                    cost = df_all_individuals_evaluated.loc[index_with_ind, 'Cost'].values[0]
+                    
+                    computed_values.append((primary_energy,cost))  # Use None for rows where Condition_Met is False
+                    
+            # Add the computed values to the DataFrame
+            df_all_individuals['Computed_Value'] = computed_values
+               
+            n_eval += len(individuals_new_generation)
+
+            # Assign the fitness to each individuals
             individuals_to_assign = self.assign_fitness_to_population(
                 invalid_fit_individuals,
-                fitnesses,
+                df_all_individuals['Computed_Value'].tolist(),
                 unc_samples)
 
             # construct offspring list
             for i, ind in zip(invalid_indices, individuals_to_assign):
 
                 offspring[i] = deepcopy(ind)
-
-        # select next population using the NSGA-II operator
         
+        # select next population using the NSGA-II operator
         new_pop = tools.selNSGA2(current_pop + offspring, len(current_pop))
 
         # update the population and fitness files
@@ -681,7 +751,7 @@ class NSGA2:
         ite, evals = self.parse_status()
         self.write_status('%8i%8i' % (ite + 1, evals + n_eval))
 
-        return new_pop
+        return new_pop, full_df_to_add
 
     def run_optimizer(self):
         """
@@ -707,16 +777,22 @@ class NSGA2:
         stats.register('min', np.min, axis=0)
         stats.register('max', np.max, axis=0)
 
+        # Initilisation of the dataframe to store all the new individuals and fiteness created at each generation.
+        # This database will be used at each generation to avoid evaluate individuals already evaluated in another generation.
+        df_all_individuals_evaluated = pd.DataFrame(columns=['Individual', 'Primary energy', 'Cost'])
+        
         # evaluate the DoE
-        temp_output_pop = self.eval_doe()
+        temp_output_pop, df_all_individuals_evaluated = self.eval_doe(df_all_individuals_evaluated)
 
         # run the generations
         evals = 0
         while evals < self.run_dict['stop'][1]:
 
             # perform one NSGA-II iteration
-            temp_output_pop = self.nsga2_1iter(temp_output_pop)
-
+            temp_output_pop, df_all_individuals_evaluated_to_add = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated)
+            # add the new individuals evaluated in the dataframe that stores all the individuals
+            df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_all_individuals_evaluated_to_add], ignore_index=True)
+            
             # update the evaluations counter
             ite, current_evals = self.parse_status()
             evals = current_evals - init_evals
@@ -726,6 +802,32 @@ class NSGA2:
             logbook.record(gen=ite, evals=evals, **record)
             print(logbook.stream)
 
+        
+        """ This part is dedicated to store the individuals evaluated with the 
+            corresponding fitness in a database. """
+        # Get the folder where the results of the specific case are stored
+        rheia_results_folder = Path(self.opt_res_dir) / 'individuals_and_fitness.db'
+        conn = sql.connect(rheia_results_folder)   
+        
+        final_df_for_database = pd.DataFrame()
+        # Set the name for each columns related to the definition of individuals
+        #   Element 1, Element 2, Element3,.... 
+        columns_names = [f'Element{i+1}' for i in range(len(df_all_individuals_evaluated.iloc[0]['Individual']))]
+        # Impossible to store a list in a database. Need to split the list into 
+        # as many elements as the size of the list.
+        for index, row in df_all_individuals_evaluated.iterrows():
+            df_matrix = pd.DataFrame({index: row['Individual']})
+            df_matrix = df_matrix.T
+            df_matrix = df_matrix.set_axis(columns_names, axis=1)
+            final_df_for_database = pd.concat([final_df_for_database, df_matrix], axis=0)
+        
+        # Add the fitness (primary energy and cost) to the dataframe that will be store in the database
+        final_df_for_database = pd.concat([final_df_for_database, df_all_individuals_evaluated['Primary energy']], axis=1)
+        final_df_for_database = pd.concat([final_df_for_database, df_all_individuals_evaluated['Cost']], axis=1)
+        # Insert the DataFrame into the SQL table named individuals_and_fitness
+        final_df_for_database.to_sql("individuals_and_fitness", conn, if_exists='append', index=False)
+        
+        conn.close()
 
 def return_opt_methods():
     """
