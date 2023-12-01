@@ -337,7 +337,7 @@ def check_dictionary(run_dict, uq_bool=False):
                                  removing it. """ % elem)
 
 
-def load_case(run_dict, design_space, uq_bool=False, create_only_samples=False):
+def load_case(run_dict, design_space, general_case_folder, uq_bool=False, create_only_samples=False):
     """
     For the selected case, the design variables and model parameters
     are loaded based on information from :file:`design_space`.
@@ -366,14 +366,14 @@ def load_case(run_dict, design_space, uq_bool=False, create_only_samples=False):
     """
 
     # define case directory
-    case_path = os.path.join(os.path.split(os.path.dirname(
-                             os.path.abspath(__file__)))[0],
-                             'CASES')
+    # case_path = os.path.join(os.path.split(os.path.dirname(
+    #                          os.path.abspath(__file__)))[0],
+    #                          'CASES')
 
     # enlist folders in cases directory
-    dir_list = [item for item in os.listdir(case_path) if os.path.isdir(
+    dir_list = [item for item in os.listdir(general_case_folder) if os.path.isdir(
                 os.path.join(
-                    case_path,
+                    general_case_folder,
                     item))]
 
     # determine the evaluation type
@@ -399,17 +399,17 @@ def load_case(run_dict, design_space, uq_bool=False, create_only_samples=False):
         raise ValueError('Missing folder: %s folder is not found!' %
                          run_dict['case'])
 
-    if not os.path.isfile(os.path.join(case_path, run_dict['case'],
+    if not os.path.isfile(os.path.join(general_case_folder, run_dict['case'],
                                        'case_description.py')):
         raise ValueError('Missing file: case_description.py not found!')
 
     if not create_only_samples:
-        sys.path.insert(0, os.path.join(case_path, run_dict['case']))
+        sys.path.insert(0, os.path.join(general_case_folder, run_dict['case']))
         import case_description
 
         # determine the evaluate function from the considered case directory
         eval_func = case_description.evaluate
-
+        
         # if fixed parameters for model evaluation are present,
         # get the params list
         if hasattr(case_description, 'set_params'):
@@ -466,7 +466,7 @@ class StochasticDesignSpace(object):
         """
 
         path_to_read = os.path.join(self.case_path, self.design_space)
-
+        
         # check if design_space file exists
         if not os.path.isfile(path_to_read):
             raise ValueError(

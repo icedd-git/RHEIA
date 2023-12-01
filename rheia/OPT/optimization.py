@@ -5,11 +5,13 @@ create the starting samples and run the optimization.
 
 import os
 import imp
+import sys
 from shutil import copyfile
 from pyDOE import lhs
 from rheia.CASES.determine_stoch_des_space import load_case, check_dictionary
 import numpy as np
 import pandas as pd
+
 #######################
 # optimizer functions #
 #######################
@@ -81,7 +83,7 @@ def load_optimizer(optimizer):
 ####################
 
 
-def check_existing_results(run_dict, space_obj):
+def check_existing_results(run_dict, space_obj, case_folder):
     """
     Check if previously generated results exists in the provided results
     directory.
@@ -103,18 +105,14 @@ def check_existing_results(run_dict, space_obj):
     """
 
     # path of the population file
-    pop_file = os.path.join(os.path.split(os.path.dirname(
-        os.path.abspath(__file__)))[0],
+    pop_file = os.path.join(case_folder,
         'RESULTS',
-        space_obj.case,
         list(run_dict['objectives'].keys())[0], run_dict['results dir'],
         'population.csv')
 
     # path of the fitness file
-    fitness_file = os.path.join(os.path.split(os.path.dirname(
-        os.path.abspath(__file__)))[0],
+    fitness_file = os.path.join(case_folder,
         'RESULTS',
-        space_obj.case,
         list(run_dict['objectives'].keys())[0], run_dict['results dir'],
         'fitness.csv')
 
@@ -175,7 +173,7 @@ def write_starting_samples(doe, filename):
             file.write('\n')
 
 
-def create_starting_samples(run_dict, space_obj, start_from_last_gen):
+def create_starting_samples(run_dict, space_obj, start_from_last_gen, case_folder):
     """
 
     Load the starting samples for the optimization run.
@@ -235,11 +233,7 @@ def create_starting_samples(run_dict, space_obj, start_from_last_gen):
 
         else:
             # the starting population is provided in a custom file
-            doe_custom = os.path.join(os.path.split(
-                os.path.dirname(
-                    os.path.abspath(__file__)))[0],
-                'CASES',
-                space_obj.case,
+            doe_custom = os.path.join(case_folder,
                 run_dict['x0'][1])
 
             # check if the custom file exists
@@ -254,11 +248,8 @@ def create_starting_samples(run_dict, space_obj, start_from_last_gen):
     else:
         # the starting population is the final generation from the existing
         # population in the result directory
-        doe_custom = os.path.join(os.path.split(
-            os.path.dirname(
-                os.path.abspath(__file__)))[0],
+        doe_custom = os.path.join(case_folder,
             'RESULTS',
-            space_obj.case,
             list(run_dict['objectives'].keys())[0],
             run_dict['results dir'],
             'population.csv')
@@ -290,7 +281,7 @@ def create_starting_samples(run_dict, space_obj, start_from_last_gen):
 ########################
 
 
-def run_opt(run_dict, design_space='design_space.csv'):
+def run_opt(run_dict, general_case_folder, rheia_folder, design_space='design_space.csv'):
     """
     This function runs the optimization pipeline.
     First, the case, optimizer and configuration
@@ -309,12 +300,15 @@ def run_opt(run_dict, design_space='design_space.csv'):
 
     """
 
+    sys.path.append(str(rheia_folder))
+    case_folder = os.path.join(general_case_folder, run_dict['case'])
+    
     # evaluate if the optimization dictionary is properly characterized
     check_dictionary(run_dict)
 
     # load the object on the design space, the evaluation function
     # and the params provided for each model evaluation
-    space_obj, eval_func, params = load_case(run_dict, design_space)
+    space_obj, eval_func, params = load_case(run_dict, design_space, general_case_folder)
 
     # add the evaluation function to the optimization dictionary
     run_dict['evaluate'] = eval_func
@@ -323,10 +317,10 @@ def run_opt(run_dict, design_space='design_space.csv'):
     opt_class = load_optimizer('NSGA2')
 
     # check if previous results in this result directory exist
-    start_from_last_gen = check_existing_results(run_dict, space_obj)
+    start_from_last_gen = check_existing_results(run_dict, space_obj, case_folder)
 
     # define starting samples
-    create_starting_samples(run_dict, space_obj, start_from_last_gen)
+    create_starting_samples(run_dict, space_obj, start_from_last_gen, case_folder)
 
     # optimizer object
     res = opt_class(run_dict, space_obj, start_from_last_gen, params)

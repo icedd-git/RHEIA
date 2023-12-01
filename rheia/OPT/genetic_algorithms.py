@@ -14,7 +14,7 @@ from pathlib import Path
 import rheia.UQ.pce as uq
 import pandas as pd
 import sqlite3 as sql
-import json
+from config_path import rheia_folder
 
 
 class NSGA2:
@@ -46,15 +46,14 @@ class NSGA2:
         self.params = params
         self.my_experiment = None
         self.objective_position = None
-        self.opt_res_dir = os.path.join(os.path.abspath(
-                                        os.path.join(
-                                            os.path.dirname(__file__),
-                                            '..')),
+        self.opt_res_dir = os.path.join(rheia_folder,
+                                        'rheia_cases',
+                                        run_dict['case'],
                                         'RESULTS',
-                                        space_obj.case,
                                         list(run_dict['objectives'].keys())[0],
                                         run_dict['results dir'],
                                         )
+        
     ########################
     # result files methods #
     ########################
@@ -323,7 +322,6 @@ class NSGA2:
         if self.run_dict['n jobs'] == 1:
             fitness = []
             for index, sample in enumerate(eval_dict):
-                #print(f"sample : {sample}")
                 # evaluate the sample dictionary in the evaluate function
                 # provide also the index of the sample in the list of samples
                 fitness.append(self.run_dict['evaluate']((index, sample),
@@ -369,7 +367,6 @@ class NSGA2:
             # in case of deterministic optimization, append the deterministic
             # result from the sample evaluations to the population
             for i, sample in enumerate(pop):
-                #print(pop[i])
                 pop[i].fitness.values = fitness[i]
 
         elif 'ROB' in self.space_obj.opt_type:
