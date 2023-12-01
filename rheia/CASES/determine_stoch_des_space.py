@@ -9,6 +9,7 @@ import os
 import sys
 import collections
 import warnings
+from config_path import rheia_folder
 
 def custom_formatwarning(msg, *args, **kwargs):
     """
@@ -464,6 +465,11 @@ class StochasticDesignSpace(object):
         values for the parameters and the bounds for the design variables.
 
         """
+        
+        self.case_path = os.path.join(rheia_folder,
+                                'rheia_cases',
+                                self.case,
+                                )
 
         path_to_read = os.path.join(self.case_path, self.design_space)
         
