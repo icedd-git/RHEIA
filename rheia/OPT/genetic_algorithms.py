@@ -321,21 +321,32 @@ class NSGA2:
         # linear processing
         if self.run_dict['n jobs'] == 1:
             fitness = []
+            intermediary_results = []
             for index, sample in enumerate(eval_dict):
                 # evaluate the sample dictionary in the evaluate function
                 # provide also the index of the sample in the list of samples
-                fitness.append(self.run_dict['evaluate']((index, sample),
-                                                         params=self.params))
+                results = self.run_dict['evaluate']((index, sample),
+                                                         params=self.params)
+                # Splitting the tuple into two parts
+                fitness_results = results[:2]  # Tuple with the first two elements
+                intermediary_results_from_evaluate = results[2:]  # Tuple with the remaining elements
+                fitness.append(fitness_results)
+                intermediary_results.append(intermediary_results_from_evaluate)
 
         else:
             # multiprocessing of the sample evaluations
             # provide also the index of the sample in the list of samples
             pool = mp.Pool(processes=self.run_dict['n jobs'])
-            fitness = pool.map(partial(self.run_dict['evaluate'],
+            results = pool.map(partial(self.run_dict['evaluate'],
                                        params=self.params),
                                enumerate(eval_dict))
             pool.close()
-        return fitness
+            # Splitting the tuple into two parts
+            fitness_results = results[:2]  # Tuple with the first two elements
+            intermediary_results = results[2:]  # Tuple with the remaining elements
+            fitness = fitness_results
+            
+        return fitness, intermediary_results
 
     def assign_fitness_to_population(self, pop, fitness, unc_samples):
         """
@@ -476,7 +487,7 @@ class NSGA2:
 
         return doe
 
-    def eval_doe(self, df_all_individuals_evaluated):
+    def eval_doe(self, df_all_individuals_evaluated, running_results, investment_results, ind_index):
         """
 
         Evaluation of the Design Of Experiments (DoE). First, the DoE
@@ -527,7 +538,7 @@ class NSGA2:
                 current_pop)
 
             # evaluate the samples
-            fitnesses = self.evaluate_samples(individuals_to_eval)
+            fitnesses, intermediary_results = self.evaluate_samples(individuals_to_eval)
             
             # Store all individuals in the dataframe. 
             # First generation has only different individuals. 
@@ -538,6 +549,20 @@ class NSGA2:
                     'Cost' : [fitnesses[i][1]]
                 })
                 df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_to_add], ignore_index=True)
+                
+                df_to_add_running_results = pd.DataFrame({
+                    'gas_consumption' : [intermediary_results[i][0]],
+                    'elec_consumption' : [intermediary_results[i][1]],
+                    'running_cost' : [intermediary_results[i][2]]
+                })
+                running_results = pd.concat([running_results, df_to_add_running_results], ignore_index=True)
+                
+                intermediary_results[i][3]['ind_evaluated_index'] = ind_index
+                
+                investment_results = pd.concat([investment_results, intermediary_results[i][3]], ignore_index=True)
+                
+                ind_index += 1
+                
             n_eval += len(individuals_to_eval)
 
             # assign fitness to the initial population
@@ -582,13 +607,13 @@ class NSGA2:
             for i, pop in enumerate(current_pop):
                 pop.fitness.values = output[i]
 
-        return current_pop, df_all_individuals_evaluated
+        return current_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index
 
     ###################
     # NSGA-II methods #
     ###################
 
-    def nsga2_1iter(self, current_pop, df_all_individuals_evaluated):
+    def nsga2_1iter(self, current_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index):
         """
 
         Run one iteration of the NSGA-II optimizer.
@@ -687,7 +712,7 @@ class NSGA2:
             individuals_to_eval = df_all_individuals.loc[df_all_individuals['Condition_Met'], 'individual'].tolist()
 
             # Evaluate the individuals
-            fitnesses_new = self.evaluate_samples(individuals_to_eval)
+            fitnesses_new, intermediary_results = self.evaluate_samples(individuals_to_eval)
             
             # Add in a dataframe all the new individuals with their respecting fitness 
             # Theses individuals will be store later in the 'df_all_individuals_evaluated' dataframe
@@ -698,6 +723,19 @@ class NSGA2:
                         'Cost' : [fitnesses_new[i][1]]
                     })
                 full_df_to_add = pd.concat([full_df_to_add, df_to_add], ignore_index=True)     
+                
+                df_to_add_running_results = pd.DataFrame({
+                    'gas_consumption' : [intermediary_results[i][0]],
+                    'elec_consumption' : [intermediary_results[i][1]],
+                    'running_cost' : [intermediary_results[i][2]]
+                })
+                running_results = pd.concat([running_results, df_to_add_running_results], ignore_index=True)
+                
+                intermediary_results[i][3]['ind_evaluated_index'] = ind_index
+                
+                investment_results = pd.concat([investment_results, intermediary_results[i][3]], ignore_index=True)
+                
+                ind_index += 1
             
             # Initilisation of a list, this lsit will be full with the fitness associated with all the individuals of the new generation
             computed_values = []
@@ -748,7 +786,7 @@ class NSGA2:
         ite, evals = self.parse_status()
         self.write_status('%8i%8i' % (ite + 1, evals + n_eval))
 
-        return new_pop, full_df_to_add
+        return new_pop, full_df_to_add, running_results, investment_results, ind_index
 
     def run_optimizer(self):
         """
@@ -777,16 +815,21 @@ class NSGA2:
         # Initilisation of the dataframe to store all the new individuals and fiteness created at each generation.
         # This database will be used at each generation to avoid evaluate individuals already evaluated in another generation.
         df_all_individuals_evaluated = pd.DataFrame(columns=['Individual', 'Primary energy', 'Cost'])
+        running_results = pd.DataFrame(columns=['gas_consumption', 'elec_consumption', 'running_cost'])
+        investment_results = pd.DataFrame(columns=['Measure', 'investment_cost', 'maintenance_costs', 'residual_value', 'replacement_costs', 'power_pref', 'power_npref', 'ind_evaluated_index'])
+        
+        # Individuals evaluated index 
+        ind_index = 0
         
         # evaluate the DoE
-        temp_output_pop, df_all_individuals_evaluated = self.eval_doe(df_all_individuals_evaluated)
+        temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index = self.eval_doe(df_all_individuals_evaluated, running_results, investment_results, ind_index)
 
         # run the generations
         evals = 0
         while evals < self.run_dict['stop'][1]:
 
             # perform one NSGA-II iteration
-            temp_output_pop, df_all_individuals_evaluated_to_add = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated)
+            temp_output_pop, df_all_individuals_evaluated_to_add, running_results, investment_results, ind_index = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index)
             # add the new individuals evaluated in the dataframe that stores all the individuals
             df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_all_individuals_evaluated_to_add], ignore_index=True)
             
@@ -803,7 +846,7 @@ class NSGA2:
         """ This part is dedicated to store the individuals evaluated with the 
             corresponding fitness in a database. """
         # Get the folder where the results of the specific case are stored
-        rheia_results_folder = Path(self.opt_res_dir) / 'individuals_and_fitness.db'
+        rheia_results_folder = Path(self.opt_res_dir) / 'all_results.db'
         conn = sql.connect(rheia_results_folder)   
         
         final_df_for_database = pd.DataFrame()
@@ -819,10 +862,12 @@ class NSGA2:
             final_df_for_database = pd.concat([final_df_for_database, df_matrix], axis=0)
         
         # Add the fitness (primary energy and cost) to the dataframe that will be store in the database
-        final_df_for_database = pd.concat([final_df_for_database, df_all_individuals_evaluated['Primary energy']], axis=1)
-        final_df_for_database = pd.concat([final_df_for_database, df_all_individuals_evaluated['Cost']], axis=1)
+        final_df_for_database = pd.concat([final_df_for_database, df_all_individuals_evaluated['Primary energy'], df_all_individuals_evaluated['Cost']], axis=1)
+        
         # Insert the DataFrame into the SQL table named individuals_and_fitness
         final_df_for_database.to_sql("individuals_and_fitness", conn, if_exists='append', index=False)
+        running_results.to_sql("running_results", conn, if_exists='append', index=False)
+        investment_results.to_sql("investment_results", conn, if_exists='append', index=False)
         
         conn.close()
 
