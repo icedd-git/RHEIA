@@ -5,7 +5,8 @@ optimization and uncertainty quantification results.
 
 import os
 import numpy as np
-
+from pathlib import Path
+from config_path import rheia_folder
 
 class PostProcessOpt():
     """
@@ -32,9 +33,11 @@ class PostProcessOpt():
         self.n_pop = 0
         self.x_lines = []
         self.y_lines = []
-        self.result_path = os.path.join(path,
-                                        eval_type,
-                                        )
+        self.result_path = os.path.join(rheia_folder,
+                                        'rheia_cases',
+                                        case,
+                                        'RESULTS', eval_type)
+        
         self.fitness_file = ''
         self.population_file = ''
         self.n_gen = 0
@@ -102,7 +105,6 @@ class PostProcessOpt():
             The population of interest.
 
         """
-
         with open(self.population_file, 'r') as file:
             self.x_lines = file.readlines()
 
