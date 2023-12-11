@@ -550,16 +550,12 @@ class NSGA2:
                 })
                 df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_to_add], ignore_index=True)
                 
-                df_to_add_running_results = pd.DataFrame({
-                    'gas_consumption' : [intermediary_results[i][0]],
-                    'elec_consumption' : [intermediary_results[i][1]],
-                    'running_cost' : [intermediary_results[i][2]]
-                })
+                df_to_add_running_results = intermediary_results[i][0]
                 running_results = pd.concat([running_results, df_to_add_running_results], ignore_index=True)
                 
-                intermediary_results[i][3]['ind_evaluated_index'] = ind_index
+                intermediary_results[i][1]['ind_evaluated_index'] = ind_index
                 
-                investment_results = pd.concat([investment_results, intermediary_results[i][3]], ignore_index=True)
+                investment_results = pd.concat([investment_results, intermediary_results[i][1]], ignore_index=True)
                 
                 ind_index += 1
                 
@@ -724,16 +720,12 @@ class NSGA2:
                     })
                 full_df_to_add = pd.concat([full_df_to_add, df_to_add], ignore_index=True)     
                 
-                df_to_add_running_results = pd.DataFrame({
-                    'gas_consumption' : [intermediary_results[i][0]],
-                    'elec_consumption' : [intermediary_results[i][1]],
-                    'running_cost' : [intermediary_results[i][2]]
-                })
+                df_to_add_running_results = intermediary_results[i][0]
                 running_results = pd.concat([running_results, df_to_add_running_results], ignore_index=True)
                 
-                intermediary_results[i][3]['ind_evaluated_index'] = ind_index
+                intermediary_results[i][1]['ind_evaluated_index'] = ind_index
                 
-                investment_results = pd.concat([investment_results, intermediary_results[i][3]], ignore_index=True)
+                investment_results = pd.concat([investment_results, intermediary_results[i][1]], ignore_index=True)
                 
                 ind_index += 1
             
