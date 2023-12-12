@@ -808,7 +808,7 @@ class NSGA2:
         # This database will be used at each generation to avoid evaluate individuals already evaluated in another generation.
         df_all_individuals_evaluated = pd.DataFrame(columns=['Individual', 'Primary energy', 'Cost'])
         running_results = pd.DataFrame(columns=['gas_consumption', 'elec_consumption', 'running_cost'])
-        investment_results = pd.DataFrame(columns=['Measure', 'investment_cost', 'maintenance_costs', 'residual_value', 'replacement_costs', 'power_heating_pref', 'power_heating_npref', 'power_water_pref', 'power_water_npref', 'ind_evaluated_index'])
+        investment_results = pd.DataFrame(columns=['Measure', 'investment_cost', 'airtightness_additional_costs_for_one_measure', 'maintenance_costs', 'residual_value', 'replacement_costs', 'power_heating_pref', 'power_heating_npref', 'power_water_pref', 'power_water_npref', 'ind_evaluated_index'])
 
         # Individuals evaluated index 
         ind_index = 0
