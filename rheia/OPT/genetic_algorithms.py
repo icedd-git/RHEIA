@@ -15,6 +15,7 @@ import rheia.UQ.pce as uq
 import pandas as pd
 import sqlite3 as sql
 from config_path import rheia_folder
+import csv
 
 
 class NSGA2:
@@ -842,9 +843,23 @@ class NSGA2:
         conn = sql.connect(rheia_results_folder)   
         
         final_df_for_database = pd.DataFrame()
-        # Set the name for each columns related to the definition of individuals
-        #   Element 1, Element 2, Element3,.... 
-        columns_names = [f'Element{i+1}' for i in range(len(df_all_individuals_evaluated.iloc[0]['Individual']))]
+        
+        # Get the path of the design_space file
+        design_space = os.path.join(rheia_folder,
+                                'rheia_cases',
+                                self.run_dict['case'],
+                                'design_space.csv')
+        
+        # Get all the name of the variables and store them in a list
+        first_column_values = []
+        with open(design_space, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                first_column_values.append(row[0])      
+            
+        # Set the name for each columns related to the definition of individuals 
+        columns_names = first_column_values
+        
         # Impossible to store a list in a database. Need to split the list into 
         # as many elements as the size of the list.
         for index, row in df_all_individuals_evaluated.iterrows():
