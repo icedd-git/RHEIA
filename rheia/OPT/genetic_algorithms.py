@@ -534,6 +534,7 @@ class NSGA2:
         # evaluate DoE
         n_eval = 0
         current_pop = []
+        case_gen_object = pd.DataFrame()
         for i, sol in enumerate(doe):
 
             # append the instance Individual
