@@ -14,6 +14,7 @@ from pathlib import Path
 import rheia.UQ.pce as uq
 import pandas as pd
 import sqlite3 as sql
+import pickle
 from config_path import rheia_folder
 import csv
 
@@ -296,7 +297,7 @@ class NSGA2:
 
             return samples_to_eval, unc_samples_to_eval
 
-    def evaluate_samples(self, samples):
+    def evaluate_samples(self, samples, ind_index):
         """
 
         Evaluation of the set of samples. If the number of jobs
@@ -323,16 +324,25 @@ class NSGA2:
         if self.run_dict['n jobs'] == 1:
             fitness = []
             intermediary_results = []
+            case_gen_object = pd.DataFrame(columns=['serialized_obj_column', 'index'])
             for index, sample in enumerate(eval_dict):
                 # evaluate the sample dictionary in the evaluate function
                 # provide also the index of the sample in the list of samples
                 results = self.run_dict['evaluate']((index, sample),
                                                          params=self.params)
-                # Splitting the tuple into two parts
-                fitness_results = results[:2]  # Tuple with the first two elements
-                intermediary_results_from_evaluate = results[2:]  # Tuple with the remaining elements
-                fitness.append(fitness_results)
-                intermediary_results.append(intermediary_results_from_evaluate)
+                
+                # Splitting the tuple into three parts
+                fitness.append(results[:2] )# Tuple with the first two elements
+                intermediary_results.append(results[2:4])
+                
+                # Serialize the object using pickle
+                serialized_obj = pickle.dumps(results[2])
+                # Create a DataFrame with the serialized object
+                df = pd.DataFrame({
+                    'serialized_obj_column': [serialized_obj],
+                    'index' : [ind_index + index]
+                    })
+                case_gen_object = pd.concat([case_gen_object, df], ignore_index=True)
 
         else:
             # multiprocessing of the sample evaluations
@@ -347,7 +357,7 @@ class NSGA2:
             intermediary_results = results[2:]  # Tuple with the remaining elements
             fitness = fitness_results
             
-        return fitness, intermediary_results
+        return fitness, intermediary_results, case_gen_object
 
     def assign_fitness_to_population(self, pop, fitness, unc_samples):
         """
@@ -539,7 +549,7 @@ class NSGA2:
                 current_pop)
 
             # evaluate the samples
-            fitnesses, intermediary_results = self.evaluate_samples(individuals_to_eval)
+            fitnesses, intermediary_results, case_gen_object = self.evaluate_samples(individuals_to_eval, ind_index)
             
             # Store all individuals in the dataframe. 
             # First generation has only different individuals. 
@@ -604,7 +614,7 @@ class NSGA2:
             for i, pop in enumerate(current_pop):
                 pop.fitness.values = output[i]
 
-        return current_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index
+        return current_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index, case_gen_object
 
     ###################
     # NSGA-II methods #
@@ -709,7 +719,7 @@ class NSGA2:
             individuals_to_eval = df_all_individuals.loc[df_all_individuals['Condition_Met'], 'individual'].tolist()
 
             # Evaluate the individuals
-            fitnesses_new, intermediary_results = self.evaluate_samples(individuals_to_eval)
+            fitnesses_new, intermediary_results, case_gen_object = self.evaluate_samples(individuals_to_eval, ind_index)
             
             # Add in a dataframe all the new individuals with their respecting fitness 
             # Theses individuals will be store later in the 'df_all_individuals_evaluated' dataframe
@@ -779,7 +789,7 @@ class NSGA2:
         ite, evals = self.parse_status()
         self.write_status('%8i%8i' % (ite + 1, evals + n_eval))
 
-        return new_pop, full_df_to_add, running_results, investment_results, ind_index
+        return new_pop, full_df_to_add, running_results, investment_results, ind_index, case_gen_object
 
     def run_optimizer(self):
         """
@@ -815,16 +825,17 @@ class NSGA2:
         ind_index = 0
         
         # evaluate the DoE
-        temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index = self.eval_doe(df_all_individuals_evaluated, running_results, investment_results, ind_index)
+        temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index, case_gen_object = self.eval_doe(df_all_individuals_evaluated, running_results, investment_results, ind_index)
 
         # run the generations
         evals = 0
         while evals < self.run_dict['stop'][1]:
 
             # perform one NSGA-II iteration
-            temp_output_pop, df_all_individuals_evaluated_to_add, running_results, investment_results, ind_index = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index)
+            temp_output_pop, df_all_individuals_evaluated_to_add, running_results, investment_results, ind_index, case_gen_object_to_add = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated, running_results, investment_results, ind_index)
             # add the new individuals evaluated in the dataframe that stores all the individuals
             df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_all_individuals_evaluated_to_add], ignore_index=True)
+            case_gen_object = pd.concat([case_gen_object, case_gen_object_to_add], ignore_index=True)
             
             # update the evaluations counter
             ite, current_evals = self.parse_status()
@@ -875,6 +886,7 @@ class NSGA2:
         final_df_for_database.to_sql("individuals_and_fitness", conn, if_exists='append', index=False)
         running_results.to_sql("running_results", conn, if_exists='append', index=False)
         investment_results.to_sql("investment_results", conn, if_exists='append', index=False)
+        case_gen_object.to_sql("case_gen_object", conn, if_exists='append', index=False)
         
         conn.close()
 
