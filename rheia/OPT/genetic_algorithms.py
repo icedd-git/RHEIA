@@ -718,6 +718,7 @@ class NSGA2:
                         'Primary energy' : [fitnesses_new[i][0]],
                         'Cost' : [fitnesses_new[i][1]]
                     })
+                full_df_to_add = pd.concat([full_df_to_add, df_to_add], ignore_index=True)
             
             # Initilisation of a list, this lsit will be full with the fitness associated with all the individuals of the new generation
             computed_values = []
