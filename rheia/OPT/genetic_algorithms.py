@@ -799,6 +799,21 @@ class NSGA2:
         # This database will be used at each generation to avoid evaluate individuals already evaluated in another generation.
         df_all_individuals_evaluated = pd.DataFrame(columns=['Individual', 'Primary energy', 'Cost'])
         
+        # Get info to store later in the database
+        # Get the folder where the results of the specific case are stored
+        rheia_results_folder = Path(self.opt_res_dir) / 'all_results.db'
+        # Get the path of the design_space file
+        design_space = os.path.join(rheia_folder,
+                                'rheia_cases',
+                                self.run_dict['case'],
+                                'design_space.csv')
+        # Get all the name of the variables and store them in a list
+        columns_names = []
+        with open(design_space, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                columns_names.append(row[0]) 
+        
         # Individuals evaluated index 
         ind_index = 0
         
@@ -807,8 +822,8 @@ class NSGA2:
 
         # run the generations
         evals = 0
+        evals_dumping = 0
         while evals < self.run_dict['stop'][1]:
-
             # perform one NSGA-II iteration
             temp_output_pop, df_all_individuals_evaluated_to_add, ind_index, case_gen_object_to_add = self.nsga2_1iter(temp_output_pop, df_all_individuals_evaluated, ind_index)
             # add the new individuals evaluated in the dataframe that stores all the individuals
@@ -817,38 +832,31 @@ class NSGA2:
             
             # update the evaluations counter
             ite, current_evals = self.parse_status()
+            evals_dumping += current_evals - evals 
             evals = current_evals - init_evals
 
             # update the logbook record
             record = stats.compile(temp_output_pop)
             logbook.record(gen=ite, evals=evals, **record)
             print(logbook.stream)
-
+            
+            """ This part is dedicated to store the case_gen objects in a database after x generations. """
+            if (evals_dumping >= 5000) or (evals >= self.run_dict['stop'][1]):
+                
+                conn = sql.connect(rheia_results_folder)   
+                # Insert the DataFrame into the SQL table named individuals_and_fitness
+                case_gen_object.to_sql("case_gen_object", conn, if_exists='append', index=False)
+                
+                conn.close()
+                case_gen_object = pd.DataFrame()
+                evals_dumping = 0
         
         """ This part is dedicated to store the individuals evaluated with the 
             corresponding fitness in a database. """
-        # Get the folder where the results of the specific case are stored
-        rheia_results_folder = Path(self.opt_res_dir) / 'all_results.db'
         conn = sql.connect(rheia_results_folder)   
         
         final_df_for_database = pd.DataFrame()
-        
-        # Get the path of the design_space file
-        design_space = os.path.join(rheia_folder,
-                                'rheia_cases',
-                                self.run_dict['case'],
-                                'design_space.csv')
-        
-        # Get all the name of the variables and store them in a list
-        first_column_values = []
-        with open(design_space, newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                first_column_values.append(row[0])      
-            
-        # Set the name for each columns related to the definition of individuals 
-        columns_names = first_column_values
-        
+
         # Impossible to store a list in a database. Need to split the list into 
         # as many elements as the size of the list.
         for index, row in df_all_individuals_evaluated.iterrows():
@@ -862,7 +870,6 @@ class NSGA2:
         
         # Insert the DataFrame into the SQL table named individuals_and_fitness
         final_df_for_database.to_sql("individuals_and_fitness", conn, if_exists='append', index=False)
-        case_gen_object.to_sql("case_gen_object", conn, if_exists='append', index=False)
         
         conn.close()
 
