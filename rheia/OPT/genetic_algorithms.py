@@ -323,16 +323,16 @@ class NSGA2:
         # linear processing
         if self.run_dict['n jobs'] == 1:
             fitness = []
+            real_primary_energy = []
             df_case_gen_object = pd.DataFrame(columns=['case_gen_obj_column', 'index'])
             for index, sample in enumerate(eval_dict):
                 # evaluate the sample dictionary in the evaluate function
                 # provide also the index of the sample in the list of samples
                 results = self.run_dict['evaluate']((index, sample),
                                                          params=self.params)
-                
                 # Splitting the tuple into three parts
                 fitness.append(results[:2] )# Tuple with the first two elements
-                
+                real_primary_energy.append(results[3])
                 # Serialize the object using pickle
                 case_gen_obj = pickle.dumps(results[2])
                 # Create a DataFrame with the serialized object
@@ -354,7 +354,7 @@ class NSGA2:
             fitness_results = results[:2]  # Tuple with the first two elements
             fitness = fitness_results
             
-        return fitness, df_case_gen_object
+        return fitness, df_case_gen_object, real_primary_energy
 
     def assign_fitness_to_population(self, pop, fitness, unc_samples):
         """
@@ -547,14 +547,14 @@ class NSGA2:
                 current_pop)
 
             # evaluate the samples
-            fitnesses, case_gen_object = self.evaluate_samples(individuals_to_eval, ind_index)
-            
+            fitnesses, case_gen_object, real_primary_energy = self.evaluate_samples(individuals_to_eval, ind_index)
+
             # Store all individuals in the dataframe. 
             # First generation has only different individuals. 
             for i, ind in enumerate(individuals_to_eval):
                 df_to_add = pd.DataFrame({
                     'Individual' : [ind],
-                    'Primary energy' : [fitnesses[i][0]],
+                    'Primary energy' : [real_primary_energy[i]],
                     'Cost' : [fitnesses[i][1]]
                 })
                 df_all_individuals_evaluated = pd.concat([df_all_individuals_evaluated, df_to_add], ignore_index=True)
@@ -708,14 +708,14 @@ class NSGA2:
             individuals_to_eval = df_all_individuals.loc[df_all_individuals['Condition_Met'], 'individual'].tolist()
 
             # Evaluate the individuals
-            fitnesses_new, case_gen_object = self.evaluate_samples(individuals_to_eval, ind_index)
+            fitnesses_new, case_gen_object, real_primary_energy = self.evaluate_samples(individuals_to_eval, ind_index)
             
             # Add in a dataframe all the new individuals with their respecting fitness 
             # Theses individuals will be store later in the 'df_all_individuals_evaluated' dataframe
             for i, ind in enumerate(individuals_to_eval):
                 df_to_add = pd.DataFrame({
                         'Individual' : [ind],
-                        'Primary energy' : [fitnesses_new[i][0]],
+                        'Primary energy' : [real_primary_energy[i]],
                         'Cost' : [fitnesses_new[i][1]]
                     })
                 full_df_to_add = pd.concat([full_df_to_add, df_to_add], ignore_index=True)
