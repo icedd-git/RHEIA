@@ -400,12 +400,13 @@ def load_case(run_dict, design_space, general_case_folder, uq_bool=False, create
         raise ValueError('Missing folder: %s folder is not found!' %
                          run_dict['case'])
 
-    if not os.path.isfile(os.path.join(general_case_folder, run_dict['case'],
+    if not os.path.isfile(os.path.join(rheia_folder, 'CO_tools',
                                        'case_description.py')):
         raise ValueError('Missing file: case_description.py not found!')
 
+    
     if not create_only_samples:
-        sys.path.insert(0, os.path.join(general_case_folder, run_dict['case']))
+        sys.path.insert(0, os.path.join(rheia_folder, 'CO_tools'))
         import case_description
 
         # determine the evaluate function from the considered case directory
