@@ -335,8 +335,15 @@ class NSGA2:
                 fitness.append(results[:2] )# Tuple with the first two elements
                 real_primary_energy.append(results[3])
                 real_total_cost.append(results[4])
+                
+                case_gen_with_all_attributes = deepcopy(results[2])
+                attribute_list = ['elements_groups','mapping_df','design_space_data','additional_elements_paths','measures_paths','rheia_case_folder_path']
+                for attribute in attribute_list:
+                    if hasattr(case_gen_with_all_attributes, attribute):
+                        delattr(case_gen_with_all_attributes, attribute)
+                
                 # Serialize the object using pickle
-                case_gen_obj = pickle.dumps(results[2])
+                case_gen_obj = pickle.dumps(case_gen_with_all_attributes)
                 # Create a DataFrame with the serialized object
                 df = pd.DataFrame({
                     'case_gen_obj_column': [case_gen_obj],
@@ -772,7 +779,7 @@ class NSGA2:
         self.write_status('%8i%8i' % (ite + 1, evals + n_eval))
 
         return new_pop, full_df_to_add, ind_index, case_gen_object
-
+    
     def run_optimizer(self):
         """
 
