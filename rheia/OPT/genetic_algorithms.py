@@ -336,9 +336,19 @@ class NSGA2:
                 real_primary_energy.append(results[3])
                 real_total_cost.append(results[4])
                 
+                # Create a deep copy of the object to be able to remove attributes of the object that will be stored
+                # and not the one used in the calculation tool
                 case_gen_with_all_attributes = deepcopy(results[2])
-                attribute_list = ['elements_groups','mapping_df','design_space_data','additional_elements_paths','measures_paths','rheia_case_folder_path']
-                for attribute in attribute_list:
+                # Define the list of all the attributes we want to remove before storing the case_gen in the database
+                attribute_list_to_remove = ['elements_groups','mapping_df','design_space_data','additional_elements_paths','measures_paths','rheia_case_folder_path',\
+                    'measures', 'measures_cost_data', 'dict_opt', 'additional_elements', 'building_references', 'case_data', 'case_dynamic_data', \
+                    'case_reference_data', 'env_elements', 'case_path', 'rheia_cases_folder', 'rheia_folder',\
+                    'type_of_building', 'type_of_cost_computation', 'floor_facing', 'ventilation_system', 'calculating_period', 'energy_cost_variation', \
+                    'floor_renovated', 'materials_and_labor_cost_variatation', 'one_objective_optimization_cost', 'one_objective_optimization_primary_energy', 'roof_renovated', \
+                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface', \
+                    'total_floor_area']
+                # Remove the attribute one by one if present 
+                for attribute in attribute_list_to_remove:
                     if hasattr(case_gen_with_all_attributes, attribute):
                         delattr(case_gen_with_all_attributes, attribute)
                 
