@@ -362,6 +362,10 @@ class NSGA2:
                 df_case_gen_object = pd.concat([df_case_gen_object, df], ignore_index=True)
 
         else:
+            fitness = []
+            real_primary_energy = []
+            real_total_cost = []
+            df_case_gen_object = pd.DataFrame(columns=['case_gen_obj_column', 'index'])
             # multiprocessing of the sample evaluations
             # provide also the index of the sample in the list of samples
             pool = mp.Pool(processes=self.run_dict['n jobs'])
@@ -370,8 +374,33 @@ class NSGA2:
                                enumerate(eval_dict))
             pool.close()
             # Splitting the tuple into two parts
-            fitness_results = results[:2]  # Tuple with the first two elements
-            fitness = fitness_results
+            # fitness_results = results[:2]  # Tuple with the first two elements
+            # fitness = fitness_results
+            for index, result in enumerate(results):
+                fitness.append(result[:2])
+                real_primary_energy.append(result[3])
+                real_total_cost.append(result[4])
+                case_gen_with_all_attributes = deepcopy(result[2])
+                attribute_list_to_remove = ['elements_groups','mapping_df','design_space_data','additional_elements_paths','measures_paths','rheia_case_folder_path',\
+                    'measures', 'measures_cost_data', 'dict_opt', 'additional_elements', 'building_references', 'case_data', 'case_dynamic_data', \
+                    'case_reference_data', 'env_elements', 'case_path', 'rheia_cases_folder', 'rheia_folder',\
+                    'type_of_building', 'type_of_cost_computation', 'floor_facing', 'ventilation_system', 'calculating_period', 'energy_cost_variation', \
+                    'floor_renovated', 'materials_and_labor_cost_variatation', 'one_objective_optimization_cost', 'one_objective_optimization_primary_energy', 'roof_renovated', \
+                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface', \
+                    'total_floor_area']
+                # Remove the attribute one by one if present 
+                for attribute in attribute_list_to_remove:
+                    if hasattr(case_gen_with_all_attributes, attribute):
+                        delattr(case_gen_with_all_attributes, attribute)
+                # Serialize the object using pickle
+                case_gen_obj = pickle.dumps(case_gen_with_all_attributes)
+                # Create a DataFrame with the serialized object
+                df = pd.DataFrame({
+                    'case_gen_obj_column': [case_gen_obj],
+                    'index' : [ind_index + index]
+                    })
+                df_case_gen_object = pd.concat([df_case_gen_object, df], ignore_index=True)
+
             
         return fitness, df_case_gen_object, real_primary_energy, real_total_cost
 
