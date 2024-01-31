@@ -386,7 +386,8 @@ def load_case(run_dict, design_space, general_case_folder, uq_bool=False, create
         eval_type = 'DET'
     else:
         raise ValueError('Error in name of optimization type!')
-
+    
+    design_space =  'RESULTS' + "/" + 'DET' + "/" +  run_dict['results dir'] + "/" + design_space
     # get the StochasticDesignSpace object
     space_obj = StochasticDesignSpace(eval_type,
                                       run_dict['case'],
@@ -473,7 +474,7 @@ class StochasticDesignSpace(object):
                                 )
 
         path_to_read = os.path.join(self.case_path, self.design_space)
-        
+
         # check if design_space file exists
         if not os.path.isfile(path_to_read):
             raise ValueError(

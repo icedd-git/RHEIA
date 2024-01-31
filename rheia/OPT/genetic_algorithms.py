@@ -854,6 +854,9 @@ class NSGA2:
         design_space = os.path.join(rheia_folder,
                                 'rheia_cases',
                                 self.run_dict['case'],
+                                'RESULTS',
+                                'DET',
+                                self.run_dict['results dir'],
                                 'design_space.csv')
         # Get all the name of the variables and store them in a list
         columns_names = []
