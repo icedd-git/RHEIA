@@ -345,8 +345,7 @@ class NSGA2:
                     'case_reference_data', 'env_elements', 'case_path', 'rheia_cases_folder', 'rheia_folder',\
                     'type_of_building', 'type_of_cost_computation', 'floor_facing', 'ventilation_system', 'calculating_period', 'energy_cost_variation', \
                     'floor_renovated', 'materials_and_labor_cost_variatation', 'one_objective_optimization_cost', 'one_objective_optimization_primary_energy', 'roof_renovated', \
-                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface', \
-                    'total_floor_area']
+                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface']
                 # Remove the attribute one by one if present 
                 for attribute in attribute_list_to_remove:
                     if hasattr(case_gen_with_all_attributes, attribute):
@@ -386,8 +385,7 @@ class NSGA2:
                     'case_reference_data', 'env_elements', 'case_path', 'rheia_cases_folder', 'rheia_folder',\
                     'type_of_building', 'type_of_cost_computation', 'floor_facing', 'ventilation_system', 'calculating_period', 'energy_cost_variation', \
                     'floor_renovated', 'materials_and_labor_cost_variatation', 'one_objective_optimization_cost', 'one_objective_optimization_primary_energy', 'roof_renovated', \
-                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface', \
-                    'total_floor_area']
+                    'v_req_mech_extr', 'v_req_mech_supply', 'ventilation_rate', 'walls_renovated', 'windows_renovated', 'airtightness_additional_costs', 'discounted_rate', 'total_deperdition_surface']
                 # Remove the attribute one by one if present 
                 for attribute in attribute_list_to_remove:
                     if hasattr(case_gen_with_all_attributes, attribute):
